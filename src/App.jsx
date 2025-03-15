@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import algosdk from 'algosdk';
-import { WalletProvider, WalletId, WalletManager, useWallet } from '@txnlab/use-wallet-react';
+import { WalletProvider, WalletId, WalletManager, NetworkId, NetworkConfigBuilder, useWallet } from '@txnlab/use-wallet-react';
 
 // Utility to convert base64 to Uint8Array (browser-safe, no Buffer)
 const base64ToUint8Array = (base64) => {
@@ -31,61 +31,41 @@ const uint8ArrayToString = (uint8Array) => {
   return String.fromCharCode.apply(null, uint8Array);
 };
 
-// Define wallet configurations
-const walletConfigs = {
-  [WalletId.KIBISIS]: {
-    id: WalletId.KIBISIS,
-  },
-  [WalletId.LUTE]: {
-    id: WalletId.LUTE,
-    options: {
-      siteName: 'Voi Lottery Test',
-    },
-  },
-};
-
-// Initialize WalletManager dynamically based on selected wallet
-const initializeWalletManager = (walletId) => {
-  return new WalletManager({
-    wallets: [walletConfigs[walletId]], // Only include the selected wallet
-    network: 'voimain',
+const networks = new NetworkConfigBuilder()
+  .addNetwork('voi-mainnet', {
     algod: {
-      server: 'https://mainnet-api.voi.nodely.dev',
-      port: '',
-      token: '',
+      token: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+      baseServer: 'https://mainnet-api.voi.nodely.dev',
+      port: ''
     },
-  });
-};
+    isTestnet: false,
+    genesisHash: 'r20fSQI8gWe/kFZziNonSPCXLwcQmH/nxROvnnueWOk=',
+    genesisId: 'voimain-v1.0',
+    caipChainId: 'algorand:r20fSQI8gWe_kFZziNonSPCXLwcQmH_n'
+  })
+  .build()
+
+console.log(networks)
+// Initialize WalletManager with Kibisis only
+const walletManager = new WalletManager({
+  wallets: [WalletId.KIBISIS],
+  networks,
+  defaultNetwork: 'voi-mainnet'
+})
+console.log(walletManager)
+
+walletManager.setActiveNetwork('voi-mainnet')
+
 
 function App() {
-  const [selectedWallet, setSelectedWallet] = useState(null);
-
-  // Render wallet selection UI if no wallet is selected
-  if (!selectedWallet) {
-    return (
-      <div>
-        <h2>Select a Wallet</h2>
-        <button onClick={() => setSelectedWallet(WalletId.KIBISIS)}>
-          Connect with Kibisis
-        </button>
-        <button onClick={() => setSelectedWallet(WalletId.LUTE)}>
-          Connect with Lute
-        </button>
-      </div>
-    );
-  }
-
-  // Initialize WalletManager with the selected wallet
-  const walletManager = initializeWalletManager(selectedWallet);
-
   return (
     <WalletProvider manager={walletManager}>
-      <LotteryComponent onChangeWallet={() => setSelectedWallet(null)} />
+      <LotteryComponent />
     </WalletProvider>
   );
 }
 
-function LotteryComponent({ onChangeWallet }) {
+function LotteryComponent() {
   const { activeAddress, signTransactions, wallets } = useWallet();
   const [balance, setBalance] = useState(0);
   const [players, setPlayers] = useState([]);
@@ -99,7 +79,8 @@ function LotteryComponent({ onChangeWallet }) {
 
   // Method selectors
   const pickWinnerSelector = new Uint8Array([0x93, 0xf2, 0x24, 0xc7]); // pick_winner: 93f224c7
-  const enterSelector = base64ToUint8Array('kXKZLg=='); // enter: explicitly "kXKZLg=="
+  const enterSelector = base64ToUint8Array('kXKZLg=='); // enter: "kXKZLg=="
+
 
   const fetchState = async () => {
     if (!activeAddress) {
@@ -144,7 +125,6 @@ function LotteryComponent({ onChangeWallet }) {
       return;
     }
     try {
-      // Ensure players list is fresh
       await fetchState();
       console.log('Current players:', players);
       if (players.length < 2) {
@@ -160,7 +140,7 @@ function LotteryComponent({ onChangeWallet }) {
         suggestedParams: sp,
         appIndex: appId,
         appArgs: [pickWinnerSelector],
-        accounts: players, // Include all players as potential winners
+        accounts: players,
       });
   
       atc.addTransaction({
@@ -187,7 +167,6 @@ function LotteryComponent({ onChangeWallet }) {
           const winner = algosdk.encodeAddress(addressBytes);
           console.log('Pick Winner return value:', winner);
   
-          // Optional: Validate winner account
           const isWinnerValid = await checkWinnerAccount(winner);
           if (!isWinnerValid) {
             alert('Selected winner account is not valid or has insufficient balance');
@@ -209,16 +188,15 @@ function LotteryComponent({ onChangeWallet }) {
       if (error.message.includes('logic eval error')) {
         console.log('Contract logic failed; check winner address and contract balance');
       }
-      await fetchState(); // Refresh state to see if it partially succeeded
+      await fetchState();
     }
   };
   
-  // Ensure this helper function is defined
   const checkWinnerAccount = async (winnerAddress) => {
     try {
       const accountInfo = await indexerClient.lookupAccountByID(winnerAddress).do();
       console.log('Winner account info:', accountInfo);
-      return accountInfo.account.amount >= 100_000; // Minimum balance of 0.1 VOI
+      return accountInfo.account.amount >= 100_000;
     } catch (error) {
       console.error('Winner account check failed:', error);
       return false;
@@ -281,7 +259,7 @@ function LotteryComponent({ onChangeWallet }) {
       return;
     }
 
-    const wallet = wallets[0]; // Only one wallet is configured at a time
+    const wallet = wallets[0]; // Only Kibisis is configured
 
     if (!activeAddress) {
       try {
@@ -309,14 +287,13 @@ function LotteryComponent({ onChangeWallet }) {
       <p>Players: {players.length > 0 ? players.join(', ') : 'None'}</p>
       <p>Last Winner: {lastWinner || 'None'}</p>
       <button onClick={connectWallet}>
-        {activeAddress ? 'Disconnect Wallet' : 'Connect Wallet'}
+        {activeAddress ? 'Disconnect Wallet' : 'Connect with Kibisis'}
       </button>
       <button onClick={fetchState} disabled={!activeAddress}>Refresh State</button>
       <button onClick={enterLottery} disabled={!activeAddress}>Enter (0.5 VOI)</button>
       {activeAddress === managerAddress && (
         <button onClick={pickWinner} disabled={!activeAddress}>Pick Winner</button>
       )}
-      <button onClick={onChangeWallet}>Change Wallet</button>
     </div>
   );
 }
