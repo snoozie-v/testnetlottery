@@ -1,61 +1,61 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import algosdk from 'algosdk';
-import { WalletProvider, WalletId, WalletManager, NetworkId, NetworkConfigBuilder, useWallet } from '@txnlab/use-wallet-react';
+import { WalletProvider, WalletId, WalletManager, NetworkConfigBuilder, useWallet } from '@txnlab/use-wallet-react';
+import { AlgorandClient, microAlgos, populateAppCallResources } from '@algorandfoundation/algokit-utils';
+import {Buffer} from 'buffer'
+import './App.css'
+import walletImage from './assets/walletconnect.png';
+import navMenu from './assets/navmenu.png';
+import logo2 from './assets/pxlmob.png';
+import tokenImg from './assets/pixToken.jpg'
 
-// Utility to convert base64 to Uint8Array (browser-safe, no Buffer)
-const base64ToUint8Array = (base64) => {
-  const binaryString = atob(base64);
-  const bytes = new Uint8Array(binaryString.length);
-  for (let i = 0; i < binaryString.length; i++) {
-    bytes[i] = binaryString.charCodeAt(i);
+window.Buffer = window.buffer || Buffer
+
+const algorand = AlgorandClient.fromConfig({
+  algodConfig: {
+    server: "https://testnet-api.voi.nodely.dev",
   }
-  return bytes;
-};
-
-// Decode ARC-4 DynamicArray[Address] from global state
-const decodeDynamicAddressArray = (byteValue) => {
-  const bytes = new Uint8Array(byteValue);
-  const dataView = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-  const length = dataView.getUint16(0, false); // First 2 bytes = length
-  const addresses = [];
-  for (let i = 0; i < length; i++) {
-    const offset = 2 + i * 32; // 2 bytes length + 32 bytes per address
-    const addressBytes = bytes.slice(offset, offset + 32);
-    addresses.push(algosdk.encodeAddress(addressBytes));
-  }
-  return addresses;
-};
-
-// Convert Uint8Array key to string
-const uint8ArrayToString = (uint8Array) => {
-  return String.fromCharCode.apply(null, uint8Array);
-};
+});
 
 const networks = new NetworkConfigBuilder()
   .addNetwork('voi-mainnet', {
     algod: {
-      token: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+      token: '',
       baseServer: 'https://mainnet-api.voi.nodely.dev',
       port: ''
     },
     isTestnet: false,
     genesisHash: 'r20fSQI8gWe/kFZziNonSPCXLwcQmH/nxROvnnueWOk=',
     genesisId: 'voimain-v1.0',
-    caipChainId: 'algorand:r20fSQI8gWe_kFZziNonSPCXLwcQmH_n'
+  })
+  .addNetwork('voi-testnet', {
+    algod: {
+      token: '',
+      baseServer: 'https://testnet-api.voi.nodely.dev',
+      port: ''
+    },
+    isTestnet: true,
+    genesisHash: 'mufvzhECYAe3WaU075v0z4k1/SNUIuUPCyBTE+Z/08s==',
+    genesisId: 'voitest-v1.1'
   })
   .build()
 
-console.log(networks)
-// Initialize WalletManager with Kibisis only
+// Initialize WalletManager with LUTE only
 const walletManager = new WalletManager({
-  wallets: [WalletId.KIBISIS],
+  wallets: [
+// to do: add KIBISIS and update front end to allow wallet selection
+    // WalletId.KIBISIS, 
+    {
+      id: WalletId.LUTE,
+      options: {
+        siteName: "PiX Lottery"
+      }
+    }
+  ],
   networks,
-  defaultNetwork: 'voi-mainnet'
-})
-console.log(walletManager)
-
-walletManager.setActiveNetwork('voi-mainnet')
-
+  defaultNetwork: 'voi-testnet', 
+});
+walletManager.setActiveNetwork('voi-testnet')
 
 function App() {
   return (
@@ -66,192 +66,27 @@ function App() {
 }
 
 function LotteryComponent() {
-  const { activeAddress, signTransactions, wallets } = useWallet();
+  const { activeAddress, transactionSigner, wallets } = useWallet();
   const [balance, setBalance] = useState(0);
   const [players, setPlayers] = useState([]);
   const [lastWinner, setLastWinner] = useState('');
 
-  const algodClient = new algosdk.Algodv2('', 'https://mainnet-api.voi.nodely.dev', '');
-  const indexerClient = new algosdk.Indexer('', 'https://mainnet-idx.voi.nodely.dev', '');
-  const appId = 8432765;
-  const appAddress = 'BGE5KDRZ3G5KGADWLIVKNIVY5IEXXGN7GES2ZXEVJM2WTJ7CCMGAD3RGGU';
-  const managerAddress = 'AM2O6LNEYJKPG7CMU6OIYW36GOFN7GKAH5HPSOSCLS42F7FCDVSMI4PFZY';
+  const appId = 57177; // Pix Lotto TestNet
+  const tokenId = 57173 // PiX Take 2 (arc200 on testNet)  
 
-  // Method selectors
-  const pickWinnerSelector = new Uint8Array([0x93, 0xf2, 0x24, 0xc7]); // pick_winner: 93f224c7
-  const enterSelector = base64ToUint8Array('kXKZLg=='); // enter: "kXKZLg=="
+  // const algodClient = new algosdk.Algodv2('', 'https://testnet-api.voi.nodely.dev', '');
+  // const indexerClient = new algosdk.Indexer('', 'https://testnet-idx.voi.nodely.dev', '');
+  
+  const appAddress = 'BKEA7LRIJMZBCRXYW7NFHU2J2QRTTUCH2W6DRJBTKCAP5DHP4PAH6GID44';
+  const managerAddress = '5P6FEAD3ASNYIW6MADC6CJ5SVQR77L72NTKO7TNMBHPHLII3JKOJZRER2I';
 
-
-  const fetchState = async () => {
-    if (!activeAddress) {
-      console.log('fetchState skipped: no activeAddress');
-      return;
+  // Set the signer for AlgorandClient when activeAddress and transactionSigner are available
+  useEffect(() => {
+    if (activeAddress && transactionSigner) {
+      algorand.account.setSigner(activeAddress, transactionSigner);
+      console.log('Signer set for address:', activeAddress);
     }
-    try {
-      const accountInfo = await indexerClient.lookupAccountByID(appAddress).do();
-      setBalance(Number(accountInfo.account.amount) / 1_000_000);
-
-      const appResponse = await indexerClient.searchForApplications().index(appId).do();
-      console.log('App search response:', appResponse);
-      const globalState = appResponse.applications[0].params.globalState;
-      console.log('globalState', globalState);
-
-      const playersState = globalState.find(state => uint8ArrayToString(state.key) === 'players');
-      if (playersState && playersState.value.type === 1) {
-        const playersArray = decodeDynamicAddressArray(playersState.value.bytes);
-        setPlayers(playersArray);
-      } else {
-        setPlayers([]);
-      }
-
-      const lastWinnerState = globalState.find(state => uint8ArrayToString(state.key) === 'last_winner');
-      if (lastWinnerState && lastWinnerState.value.type === 1) {
-        setLastWinner(algosdk.encodeAddress(lastWinnerState.value.bytes));
-      }
-    } catch (error) {
-      console.error('Fetch state error:', error);
-    }
-  };
-
-  const pickWinner = async () => {
-    console.log('Active address:', activeAddress);
-    console.log('Manager address:', managerAddress);
-    if (!activeAddress || activeAddress !== managerAddress) {
-      alert('Only manager can pick winner');
-      return;
-    }
-    if (balance < 0.5) {
-      alert('Insufficient contract balance to pick winner');
-      return;
-    }
-    try {
-      await fetchState();
-      console.log('Current players:', players);
-      if (players.length < 2) {
-        alert('At least 2 players are required to pick a winner');
-        return;
-      }
-  
-      const atc = new algosdk.AtomicTransactionComposer();
-      const sp = await algodClient.getTransactionParams().do();
-  
-      const txn = algosdk.makeApplicationNoOpTxnFromObject({
-        sender: activeAddress,
-        suggestedParams: sp,
-        appIndex: appId,
-        appArgs: [pickWinnerSelector],
-        accounts: players,
-      });
-  
-      atc.addTransaction({
-        txn: txn,
-        signer: async (unsignedTxns) => {
-          const encodedTxns = unsignedTxns.map(txn => algosdk.encodeUnsignedTransaction(txn));
-          return await signTransactions(encodedTxns);
-        },
-      });
-  
-      console.log('Executing pickWinner transaction...');
-      const result = await atc.execute(algodClient, 4);
-      console.log('Transaction confirmed:', result);
-  
-      const txId = result.txIDs[0];
-      const confirmedTxn = await algosdk.waitForConfirmation(algodClient, txId, 4);
-      if (confirmedTxn.logs && confirmedTxn.logs.length > 0) {
-        const lastLog = confirmedTxn.logs[confirmedTxn.logs.length - 1];
-        const logBytes = new Uint8Array(lastLog);
-        console.log('Raw log bytes:', Array.from(logBytes));
-  
-        if (logBytes.length >= 36 && logBytes[0] === 0x15 && logBytes[1] === 0x1f && logBytes[2] === 0x7c && logBytes[3] === 0x75) {
-          const addressBytes = logBytes.slice(4, 36);
-          const winner = algosdk.encodeAddress(addressBytes);
-          console.log('Pick Winner return value:', winner);
-  
-          const isWinnerValid = await checkWinnerAccount(winner);
-          if (!isWinnerValid) {
-            alert('Selected winner account is not valid or has insufficient balance');
-            return;
-          }
-  
-          setLastWinner(winner);
-          setPlayers([]);
-        } else {
-          console.warn('Log does not match expected ABI return format:', Array.from(logBytes));
-        }
-      } else {
-        console.warn('No logs found in transaction');
-      }
-  
-      await fetchState();
-    } catch (error) {
-      console.error('Pick winner error:', error);
-      if (error.message.includes('logic eval error')) {
-        console.log('Contract logic failed; check winner address and contract balance');
-      }
-      await fetchState();
-    }
-  };
-  
-  const checkWinnerAccount = async (winnerAddress) => {
-    try {
-      const accountInfo = await indexerClient.lookupAccountByID(winnerAddress).do();
-      console.log('Winner account info:', accountInfo);
-      return accountInfo.account.amount >= 100_000;
-    } catch (error) {
-      console.error('Winner account check failed:', error);
-      return false;
-    }
-  };
-
-  const enterLottery = async () => {
-    if (!activeAddress) {
-      alert('Connect wallet first');
-      return;
-    }
-    try {
-      const atc = new algosdk.AtomicTransactionComposer();
-      const sp = await algodClient.getTransactionParams().do();
-      const paymentAmount = 500_000;
-
-      const paymentTxn = algosdk.makePaymentTxnWithSuggestedParamsFromObject({
-        sender: activeAddress,
-        receiver: appAddress,
-        amount: paymentAmount,
-        suggestedParams: sp,
-      });
-
-      const appCallTxn = algosdk.makeApplicationNoOpTxnFromObject({
-        sender: activeAddress,
-        suggestedParams: sp,
-        appIndex: appId,
-        appArgs: [enterSelector, algosdk.encodeUint64(paymentAmount)],
-      });
-
-      console.log('App Call appArgs (base64):', [
-        btoa(String.fromCharCode(...enterSelector)),
-        btoa(String.fromCharCode(...algosdk.encodeUint64(paymentAmount))),
-      ]);
-
-      const signer = async (unsignedTxns) => {
-        const encodedTxns = unsignedTxns.map(txn => algosdk.encodeUnsignedTransaction(txn));
-        return await signTransactions(encodedTxns);
-      };
-      atc.addTransaction({ txn: paymentTxn, signer });
-      atc.addTransaction({ txn: appCallTxn, signer });
-
-      console.log('Executing enterLottery transaction...');
-      const result = await atc.execute(algodClient, 4);
-      console.log('Transaction confirmed:', result);
-
-      await fetchState();
-    } catch (error) {
-      console.error('Enter lottery error:', error);
-      if (error.message.includes('Transaction not confirmed')) {
-        console.log('Transaction may still have succeeded; checking state...');
-        await fetchState();
-      }
-    }
-  };
+  }, [activeAddress, transactionSigner]);
 
   const connectWallet = async () => {
     if (!wallets || wallets.length === 0) {
@@ -259,13 +94,12 @@ function LotteryComponent() {
       return;
     }
 
-    const wallet = wallets[0]; // Only Kibisis is configured
+    const wallet = wallets[0]; // Only Lute is configured
 
     if (!activeAddress) {
       try {
         await wallet.connect();
         console.log('Wallet connected, activeAddress:', activeAddress);
-        if (activeAddress) fetchState();
       } catch (error) {
         console.error('Connection failed:', error);
       }
@@ -279,23 +113,227 @@ function LotteryComponent() {
     }
   };
 
+  const approveLottery = async () => {
+    const amount = BigInt(10000000); // 10 tokens, assuming 6 decimals
+    const spender = appAddress;
+    const approve = algosdk.ABIMethod.fromSignature('arc200_approve(address,uint256)bool');
+    // const arc200AppId = 57173;
+
+    const result = await algorand
+      .newGroup()
+      .addAppCallMethodCall({
+        sender: activeAddress,
+        appId: tokenId,
+        method: approve,
+        args: [spender, amount],
+      })
+      .send({
+        populateAppCallResources: true,
+      });
+
+    console.log('Approval result:', result);  
+  };
+
+  const enterLottery = async () => {
+    const paymentAmount = 1_000_000;
+    const enter = algosdk.ABIMethod.fromSignature('enter(uint64)void')
+    const result = await algorand
+      .newGroup()
+      .addAppCallMethodCall({
+        sender: activeAddress,
+        appId: appId,
+        method: enter,
+        args: [paymentAmount],
+        staticFee: microAlgos(2000)
+      })
+      .send({
+        populateAppCallResources: true,
+      })
+      console.log(result)
+    }
+
+  const pickWinner = async () => {
+    try {
+      const pickWinnerMethod = algosdk.ABIMethod.fromSignature('pick_winner()address');
+      const appCall = algorand.newGroup();
+  
+      // Simulate the transaction
+      const simulation = await appCall
+        .addAppCallMethodCall({
+          sender: activeAddress,
+          appId: appId, // Ensure this is 57177
+          method: pickWinnerMethod,
+          staticFee: microAlgos(2000),
+        })
+        .simulate({
+          allowUnnamedResources: true,
+          allowEmptySignatures: true,
+        });
+  
+      // Log simulation response for debugging
+      console.log('Simulation response:', JSON.stringify(simulation, (key, value) => 
+        typeof value === 'bigint' ? value.toString() : value, 2));
+      console.log('Resources accessed:', simulation.simulateResponse.txnGroups[0].unnamedResourcesAccessed);
+      console.log('Apps accessed:', simulation.simulateResponse.txnGroups[0].unnamedResourcesAccessed.apps);
+      console.log('Boxes accessed:', simulation.simulateResponse.txnGroups[0].unnamedResourcesAccessed.boxes);
+  
+      // Extract resources from simulation
+      const unnamedResources = simulation.simulateResponse.txnGroups[0].unnamedResourcesAccessed || {};
+  
+      // Format app references
+      const appsReferenced = (unnamedResources.apps || []).map(app => (app)); // Keep as bigint
+  
+      // Format box references as [appId, "base64 value"]
+      const boxesReferenced = (unnamedResources.boxes || []).map(box => {
+        const nameAsBase64 = Buffer.from(box.name).toString('base64');
+        console.log(`Box app: ${box.app}, name (Base64): ${nameAsBase64}`);
+        return {
+          appId: Number(box.app), // Convert bigint to number
+          name: nameAsBase64, // Base64 string
+        };
+      });
+  
+      // Log formatted resources
+      console.log('App references:', appsReferenced);
+      console.log('Box references:', boxesReferenced);
+
+  
+      // Add app call with populated resources
+      const result = await appCall
+        .addAppCallMethodCall({
+          sender: activeAddress,
+          appId: appId, // Ensure this is 57177
+          method: pickWinnerMethod,
+          staticFee: microAlgos(2000),
+          appReferences: appsReferenced, // Array of bigint
+          boxReferences: boxesReferenced // Array of [appId: number, base64: string]
+        })
+        .send({
+          populateAppCallResources: true,
+        });
+  
+      console.log('Pick winner result:', result);
+    } catch (error) {
+      console.error('Pick winner error:', error.message);
+    }
+  };
+  
+  // const pickWinner = async () => {
+  //   try {
+  //     const pickWinnerMethod = algosdk.ABIMethod.fromSignature('pick_winner()address');
+  //     const result = await algorand
+  //       .newGroup()
+  //       .addAppCallMethodCall({
+  //         sender: activeAddress,
+  //         appId: 57177, // Lottery app ID
+  //         method: pickWinnerMethod,
+  //         staticFee: microAlgos(2000),
+  //         appReferences: [57173n], 
+  //         boxReferences: [
+  //           { appId: 57173n, name: Buffer.from('YmFsYW5jZXMKiA+uKEsyEUb4t9pT00nUIznQR9W8OKQzUID+jO/jwA==', 'base64') },
+  //           { appId: 57173n, name: Buffer.from('YmFsYW5jZXPr/FIAewSbhFvMAMXhJ7KsI/+v+mzU782sCd51oRtKnA==', 'base64') },
+  //           { appId: 57173n, name: Buffer.from('YmFsYW5jZXMDNO8tpMJU83xMp5yMW34zit+ZQD9O+TpCXLmi/KIdZA==', 'base64') },
+  //           { appId: 57177n, name: Buffer.from('cGxheWVycw==', 'base64') },
+  //         ]
+  //       })
+  //       .send({
+  //         populateAppCallResources: true,
+  //       });
+  //     console.log('Pick winner result:', result);
+  //   } catch (error) {
+  //     console.error('Pick winner error:', error.message);
+  //   }
+  // };
+
+  const getLastWinner = async () => {
+    const globalState = await algorand.app.getGlobalState(appId);
+    const lastWinnerRaw = globalState['last_winner']?.valueRaw; // get the raw bytes
+    if (lastWinnerRaw) {
+      const lastWinnerAddress = algosdk.encodeAddress(new Uint8Array(lastWinnerRaw));
+      console.log(lastWinnerAddress);
+      setLastWinner(lastWinnerAddress)
+    } else {
+      console.log('No last_winner found');
+    }
+  };
+
+  const getTknBalance = async () => {
+    // Fetch the global state for the app
+    const globalState = await algorand.app.getGlobalState(appId);
+    // The key in global state is usually base64 or UTF-8 encoded
+    // Adjust 'tkn_balance' to match the actual key name used in your contract
+    const tknBalance = globalState['tkn_balance']?.value;
+    const finalBalance = Number(tknBalance) / 1000000
+    // Update your app/UI with the balance
+    console.log('Token Balance:', tknBalance);
+    console.log('Final Balance:', finalBalance)
+    setBalance(finalBalance)
+    setPlayers(finalBalance)
+  };
+
   return (
-    <div>
-      <h1>Voi Lottery Test</h1>
-      <p>Connected Address: {activeAddress || 'Not connected'}</p>
-      <p>Contract Balance: {balance} VOI</p>
-      <p>Players: {players.length > 0 ? players.join(', ') : 'None'}</p>
+    <div className='main'>
+      <div className="header-container">
+      <div className="left">
+        <img
+          id="walletImage"
+          src={walletImage}
+          alt="Wallet image"
+          onClick={() => connectWallet(wallets)}
+          className="clickable"
+        />
+        {activeAddress && (
+          <div className="wallet-address-display">
+            {activeAddress.slice(0, 6)}...{activeAddress.slice(-4)}
+          </div>
+        )}
+      </div>     
+      <img 
+        id="logo" 
+        src={logo2} 
+        alt="Pxlmob Logo"
+        // onClick={handleLogoClick} 
+        className="clickable"   
+      />
+      <div className="right">
+        <img
+          id="navMenu"
+          src={navMenu}
+          alt="Nav Menu"
+          // onClick={handleNavMenuClick}
+          className="clickable"
+        />
+      </div>
+    </div>
+      <h1>PiX Lottery</h1>
+      <img className="pix-image" src={tokenImg} alt="$PiX Token" />
+      {/* <p>Connected Address: {activeAddress || 'Not connected'}</p> */}
+
+      <p>If you've never played, first approve the lottery by clicking below</p>
+      <button onClick={approveLottery} disabled={!activeAddress}>Approve</button>
+
+      <p>Once approved, enter the lottery by clicking Enter and signing the transaction</p>
+      <button onClick={enterLottery} disabled={!activeAddress}>Enter (1 PiX)</button>
+      <p>Number of Players: {players} / 31   ||  Prize Balance: {balance} PiX</p>
+      <p></p>
+      <button onClick={getTknBalance} disabled={!activeAddress}>Check Prize Balance</button>
+ 
       <p>Last Winner: {lastWinner || 'None'}</p>
-      <button onClick={connectWallet}>
-        {activeAddress ? 'Disconnect Wallet' : 'Connect with Kibisis'}
-      </button>
-      <button onClick={fetchState} disabled={!activeAddress}>Refresh State</button>
-      <button onClick={enterLottery} disabled={!activeAddress}>Enter (0.5 VOI)</button>
+      <button onClick={getLastWinner} disabled={!activeAddress}>Get Last Winner</button>
+      {/* <button onClick={fetchState} disabled={!activeAddress}>Refresh State</button> */}
       {activeAddress === managerAddress && (
-        <button onClick={pickWinner} disabled={!activeAddress}>Pick Winner</button>
+        <div>
+          <p>Only the manager of the lottery can see this and pick the winner.</p>
+          <button onClick={pickWinner} disabled={!activeAddress}>Pick Winner</button>
+        </div>
       )}
+
     </div>
   );
 }
 
 export default App;
+
+      {/* <button onClick={connectWallet}>
+        {activeAddress ? 'Disconnect Wallet' : 'Connect with Lute'}
+      </button> */}
