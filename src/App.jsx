@@ -232,6 +232,10 @@ function LotteryComponent() {
         });
       console.log('Enter lottery result:', result);
       alert('Successfully entered the lottery!');
+      await fetchLotteryState();
+      // Locally update allowance (assuming contract deducts enterAmount)
+      setAllowance((prev) => (prev >= BigInt(enterAmount) ? prev - BigInt(enterAmount) : BigInt(0)));
+
     } catch (error) {
       console.error('Enter lottery error:', error);
       setError('Failed to enter lottery. Ensure you have enough PiX and try again.');
@@ -279,6 +283,7 @@ function LotteryComponent() {
         });
 
       console.log('Pick winner result:', result);
+      await fetchLotteryState();
     } catch (error) {
       console.error('Pick winner error:', error.message);
       setError('Failed to pick winner. Please try again.');
