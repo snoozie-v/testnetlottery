@@ -73,6 +73,7 @@ function LotteryComponent() {
   const [isEntering, setIsEntering] = useState(false);
   const [isLoadingState, setIsLoadingState] = useState(false);
   const [error, setError] = useState(null);
+  const [lastWonAmount, setLastWonAmount] = useState(0)
 
   const appId = 84465; // Test PiX Lotto Final
   const tokenId = 84463; // Test PiX Final
@@ -100,7 +101,15 @@ function LotteryComponent() {
       } else {
         console.warn('No tkn_balance found');
       }
+      // Fetch last amount sent to winner
+      const lastWinningRaw = Number(globalState['last_winning_amount']?.value) / 1000000
+      if (lastWinningRaw) {
+        const lastWinningAmount = (lastWinningRaw)
+        setLastWonAmount(lastWinningAmount)
+      } else {
+        console.log('No last winning amount found');
 
+      }
       // Fetch last winner
       const lastWinnerRaw = globalState['last_winner']?.valueRaw;
       if (lastWinnerRaw) {
@@ -285,6 +294,8 @@ function LotteryComponent() {
         });
 
       console.log('Pick winner result:', result);
+      await fetchLotteryState();
+
     } catch (error) {
       console.error('Pick winner error:', error.message);
       setError('Failed to pick winner. Please try again.');
@@ -323,9 +334,7 @@ function LotteryComponent() {
           />
         </div>
       </div>
-      <h1>PiX Lottery</h1>
-      <img className="pix-image" src={tokenImg} alt="$PiX Token" />
-
+      <h1>Test Net PiX Lottery</h1>
       {/* Lottery State Section */}
       <div className="lottery-state" style={{ maxWidth: '600px', margin: '1rem auto', padding: '1rem', textAlign: 'center' }}>
         {isLoadingState ? (
@@ -336,12 +345,12 @@ function LotteryComponent() {
               Number of Players: {players} / 31 || Prize Balance: {balance} PiX
             </p>
             <p style={{ margin: '0.5rem 0' }}>
-              Last Winner: {lastWinner || 'None'}
+              Last Winner: {lastWinner || 'None'} Prize: {lastWonAmount}
             </p>
           </>
         )}
       </div>
-
+      <img className="pix-image" src={tokenImg} alt="$PiX Token" />
       {/* Lottery Interaction Section */}
       <div className="lottery-container" style={{ maxWidth: '600px', margin: '2rem auto', padding: '1rem', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>
         {!activeAddress ? (
