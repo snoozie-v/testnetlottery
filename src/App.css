@@ -51,3 +51,12 @@
   border: 6px solid #333;
   border-radius: 8px;
 }
+
+.wallet-menu-item {
+  padding: 0.5rem 1rem;
+  cursor: pointer;
+}
+
+.wallet-menu-item:hover {
+  background-color: #f0f0f0;
+}

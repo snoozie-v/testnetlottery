@@ -50,9 +50,9 @@ const walletManager = new WalletManager({
     },
   ],
   networks,
-  defaultNetwork: 'voi-testnet',
+  defaultNetwork: 'localnet',
 });
-walletManager.setActiveNetwork('voi-testnet');
+walletManager.setActiveNetwork('localnet');
 
 function App() {
   return (
@@ -74,10 +74,10 @@ function LotteryComponent() {
   const [isLoadingState, setIsLoadingState] = useState(false);
   const [error, setError] = useState(null);
 
-  const appId = 57177; // Pix Lotto TestNet
-  const tokenId = 57173; // PiX Take 2 (arc200 on testNet)
-  const enterAmount = 1_000_000; // 1 PiX in smallest unit (6 decimals)
-  const appAddress = 'BKEA7LRIJMZBCRXYW7NFHU2J2QRTTUCH2W6DRJBTKCAP5DHP4PAH6GID44';
+  const appId = 84465; // Test PiX Lotto Final
+  const tokenId = 84463; // Test PiX Final
+  const enterAmount = 1_000_000_000; // 1000 Test PiX as entry
+  const appAddress = 'VSXNJRRCCPEXGMG6EP4M7NXI5J55I6HOK524OUMDRREPVOUYCVNOYN7V5A';
   const managerAddress = '5P6FEAD3ASNYIW6MADC6CJ5SVQR77L72NTKO7TNMBHPHLII3JKOJZRER2I';
 
   const isApproved = allowance !== null && allowance >= BigInt(enterAmount);
@@ -91,10 +91,12 @@ function LotteryComponent() {
       const tknBalance = globalState['tkn_balance']?.value;
       if (tknBalance !== undefined) {
         const finalBalance = Number(tknBalance) / 1_000_000;
-        console.log('Token Balance:', tknBalance);
-        console.log('Final Balance:', finalBalance);
+        const playersBalance = Number(finalBalance) / 1_000
+        // console.log('Token Balance:', tknBalance);
+        // console.log('Final Balance:', finalBalance);
+        // console.log('Players Balance:', playersBalance)
         setBalance(finalBalance);
-        setPlayers(finalBalance);
+        setPlayers(playersBalance);
       } else {
         console.warn('No tkn_balance found');
       }
@@ -103,7 +105,7 @@ function LotteryComponent() {
       const lastWinnerRaw = globalState['last_winner']?.valueRaw;
       if (lastWinnerRaw) {
         const lastWinnerAddress = algosdk.encodeAddress(new Uint8Array(lastWinnerRaw));
-        console.log('Last winner:', lastWinnerAddress);
+        // console.log('Last winner:', lastWinnerAddress);
         setLastWinner(lastWinnerAddress);
       } else {
         console.log('No last_winner found');
@@ -126,7 +128,7 @@ function LotteryComponent() {
   useEffect(() => {
     if (activeAddress && transactionSigner) {
       algorand.account.setSigner(activeAddress, transactionSigner);
-      console.log('Signer set for address:', activeAddress);
+      // console.log('Signer set for address:', activeAddress);
     }
   }, [activeAddress, transactionSigner]);
 
@@ -141,7 +143,7 @@ function LotteryComponent() {
     if (!activeAddress) {
       try {
         await wallet.connect();
-        console.log('Wallet connected, activeAddress:', activeAddress);
+        // console.log('Wallet connected, activeAddress:', activeAddress);
       } catch (error) {
         console.error('Connection failed:', error);
         setError('Failed to connect wallet. Please try again.');
@@ -149,7 +151,7 @@ function LotteryComponent() {
     } else {
       try {
         await wallet.disconnect();
-        console.log('Wallet disconnected');
+        // console.log('Wallet disconnected');
         setAllowance(null);
       } catch (error) {
         console.error('Disconnection failed:', error);
@@ -162,7 +164,7 @@ function LotteryComponent() {
     setIsApproving(true);
     setError(null);
     try {
-      const amount = BigInt(10_000_000);
+      const amount = BigInt(10_000_000_000);
       const spender = appAddress;
       const approve = algosdk.ABIMethod.fromSignature('arc200_approve(address,uint256)bool');
       const result = await algorand
@@ -204,7 +206,7 @@ function LotteryComponent() {
           populateAppCallResources: true,
         });
       const allowanceValue = result.returns[0].returnValue;
-      console.log('Allowance:', allowanceValue);
+      // console.log('Allowance:', allowanceValue);
       setAllowance(allowanceValue);
     } catch (error) {
       console.error('Check allowance error:', error);
@@ -252,15 +254,15 @@ function LotteryComponent() {
           sender: activeAddress,
           appId: appId,
           method: pickWinnerMethod,
-          staticFee: microAlgos(2000),
+          staticFee: microAlgos(3000),
         })
         .simulate({
           allowUnnamedResources: true,
           allowEmptySignatures: true,
         });
 
-      console.log('Simulation response:', JSON.stringify(simulation, (key, value) =>
-        typeof value === 'bigint' ? value.toString() : value, 2));
+      // console.log('Simulation response:', JSON.stringify(simulation, (key, value) =>
+      //   typeof value === 'bigint' ? value.toString() : value, 2));
 
       const unnamedResources = simulation.simulateResponse.txnGroups[0].unnamedResourcesAccessed || {};
       const appsReferenced = (unnamedResources.apps || []).map(app => (app));
@@ -283,7 +285,6 @@ function LotteryComponent() {
         });
 
       console.log('Pick winner result:', result);
-      await fetchLotteryState();
     } catch (error) {
       console.error('Pick winner error:', error.message);
       setError('Failed to pick winner. Please try again.');
@@ -412,7 +413,7 @@ function LotteryComponent() {
 
             <div className="step" style={{ marginBottom: '1.5rem' }}>
               <p style={{ fontWeight: 'bold', marginBottom: '0.5rem' }}>Step 3: Enter Lottery</p>
-              <p>Enter the lottery for 1 PiX by signing the transaction.</p>
+              <p>Enter the lottery for 1,000 PiX by signing the transaction.</p>
               <button
                 onClick={enterLottery}
                 disabled={!isApproved || isEntering}
@@ -429,7 +430,7 @@ function LotteryComponent() {
                 aria-disabled={!isApproved || isEntering}
                 title={!isApproved ? 'Complete previous steps to enable' : ''}
               >
-                {isEntering ? 'Entering...' : 'Enter (1 PiX)'}
+                {isEntering ? 'Entering...' : 'Enter (1k PiX)'}
               </button>
             </div>
 
