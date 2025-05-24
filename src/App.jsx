@@ -345,7 +345,7 @@ function LotteryComponent() {
               Number of Players: {players} / 31 || Prize Balance: {balance} PiX
             </p>
             <p style={{ margin: '0.5rem 0' }}>
-              Last Winner: {lastWinner || 'None'} Prize: {lastWonAmount}
+              Last Round Winner: {lastWinner || 'None'} Last Round Prize: {lastWonAmount}
             </p>
           </>
         )}
