@@ -50,9 +50,9 @@ const walletManager = new WalletManager({
     },
   ],
   networks,
-  defaultNetwork: 'localnet',
+  defaultNetwork: 'voi-testnet',
 });
-walletManager.setActiveNetwork('localnet');
+walletManager.setActiveNetwork('voi-testnet');
 
 function App() {
   return (
